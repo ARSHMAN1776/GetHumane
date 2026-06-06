@@ -141,7 +141,7 @@ export default function WaitlistPopup() {
             <button
               onClick={closeModal}
               disabled={loading}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/8 hover:bg-white/15 flex items-center justify-center text-white/60 hover:text-white transition-all z-10"
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/8 hover:bg-white/15 flex items-center justify-center text-white/60 hover:text-white transition-all z-30"
               aria-label="Close"
             >
               <X size={16} />
