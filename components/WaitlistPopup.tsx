@@ -9,8 +9,10 @@
 import { useState, useEffect } from 'react'
 import { X, Loader2, CheckCircle, Bell } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { usePathname } from 'next/navigation'
 
 export default function WaitlistPopup() {
+  const pathname = usePathname()
   const [modalOpen,  setModalOpen]  = useState(false)
   const [email,      setEmail]      = useState('')
   const [loading,    setLoading]    = useState(false)
@@ -28,6 +30,8 @@ export default function WaitlistPopup() {
     document.body.style.overflow = modalOpen ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [modalOpen])
+
+  if (pathname !== '/') return null
 
   const openModal = () => {
     setSubmitted(false)
