@@ -43,8 +43,8 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
       toast.success('Welcome back!')
-      router.push('/dashboard')
       router.refresh()
+      router.push('/dashboard')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Invalid credentials')
     } finally {

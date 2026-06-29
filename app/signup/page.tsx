@@ -146,8 +146,8 @@ export default function SignupPage() {
       }
 
       toast.success('Account created! Redirecting...')
-      router.push(role === 'provider' ? '/onboarding' : '/browse')
       router.refresh()
+      router.push(role === 'provider' ? '/onboarding' : '/browse')
 
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong'

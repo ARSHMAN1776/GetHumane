@@ -46,14 +46,7 @@ export function createBrowserClient() {
 }
 
 // ─── Server Client ─────────────────────────────────────────────────────────────
-/**
- * Use in Server Components, Route Handlers, or middleware.
- *
- * `next/headers` is imported dynamically inside this function so this module
- * can be bundled for the browser without crashing (the browser path never
- * calls createServerClient).
- */
-export async function createServerClient() {
+export const createServerClient = cache(async () => {
   // Dynamic import keeps `next/headers` out of the browser bundle
   const { cookies } = await import('next/headers')
   const cookieStore = await cookies()
@@ -75,7 +68,7 @@ export async function createServerClient() {
       },
     },
   })
-}
+})
 
 // ─── Convenience: get current user profile ────────────────────────────────────
 /**
