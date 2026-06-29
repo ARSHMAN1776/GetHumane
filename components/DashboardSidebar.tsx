@@ -40,12 +40,19 @@ export default function DashboardSidebar({
 
 
   useEffect(() => {
-    supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('receiver_id', user.id)
-      .eq('read', false)
-      .then(({ count }) => setUnread(count ?? 0))
+    async function fetchUnreadCount() {
+      try {
+        const { count } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('receiver_id', user.id)
+          .eq('read', false)
+        setUnread(count ?? 0)
+      } catch (err) {
+        console.error('Error fetching unread messages count:', err)
+      }
+    }
+    fetchUnreadCount()
   }, [user.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const isActive = (href: string) =>

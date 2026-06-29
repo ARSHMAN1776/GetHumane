@@ -53,7 +53,7 @@ export default function MessageThread({ bookingId, currentUserId }: Props) {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `booking_id=eq.${bookingId}` },
-        async (payload) => {
+        async (payload: any) => {
           // Fetch sender info for the new message
           const { data: msg } = await supabase
             .from('messages')

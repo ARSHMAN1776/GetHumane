@@ -98,23 +98,32 @@ export default function BrowsePage() {
 
   // Load skill categories from DB
   useEffect(() => {
-    supabase
-      .from('skill_categories')
-      .select('label, emoji, keywords')
-      .order('sort_order', { ascending: true })
-      .then(({ data }) => {
+    async function loadCategories() {
+      try {
+        const { data } = await supabase
+          .from('skill_categories')
+          .select('label, emoji, keywords')
+          .order('sort_order', { ascending: true })
+
         if (data && data.length > 0) {
           setCategories([
             { label: 'All', emoji: '✨', keywords: [] },
-            ...data.map(d => ({ label: d.label, emoji: d.emoji, keywords: d.keywords ?? [] })),
+            ...data.map((d: any) => ({ label: d.label, emoji: d.emoji, keywords: d.keywords ?? [] })),
           ])
         } else {
           setCategories([{ label: 'All', emoji: '✨', keywords: [] }, ...FALLBACK_CATEGORIES.slice(1)])
         }
+      } catch (err) {
+        console.error('Error loading categories:', err)
+        setCategories([{ label: 'All', emoji: '✨', keywords: [] }, ...FALLBACK_CATEGORIES.slice(1)])
+      } finally {
         setCatsLoading(false)
-      })
+      }
+    }
+    loadCategories()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
 
   const fetchProviders = useCallback(async () => {
     setLoading(true)
@@ -129,8 +138,8 @@ export default function BrowsePage() {
     const { data, error } = await q
     if (error) { setLoading(false); return }
 
-    let list: ProviderCardData[] = (data ?? []).map((p) => {
-      const revs = (p as any).reviews_received ?? []
+    let list: ProviderCardData[] = (data ?? []).map((p: any) => {
+      const revs = p.reviews_received ?? []
       return {
         id: p.id, full_name: p.full_name, photo_url: p.photo_url,
         city: p.city, is_verified: p.is_verified, bio: p.bio,
