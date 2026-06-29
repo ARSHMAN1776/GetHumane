@@ -146,7 +146,7 @@ export default function SignupPage() {
       }
 
       toast.success('Account created! Redirecting...')
-      router.push('/dashboard')
+      router.push(role === 'provider' ? '/onboarding' : '/browse')
       router.refresh()
 
     } catch (err: unknown) {
@@ -163,7 +163,7 @@ export default function SignupPage() {
       <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
         <div className="w-full max-w-2xl">
           <div className="text-center mb-10">
-            <h1 className="text-4xl font-black text-gray-900 mb-3">Join GetHumane</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-3">Join GetHumane</h1>
             <p className="text-lg text-gray-500">How do you want to participate?</p>
           </div>
 
@@ -236,7 +236,7 @@ export default function SignupPage() {
             {isProvider ? <Briefcase size={14} /> : <Heart size={14} />}
             Signing up as a {isProvider ? 'Skill Provider' : 'Skill Seeker'}
           </div>
-          <h1 className="text-3xl font-black text-gray-900">Create your account</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Create your account</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="card p-8 space-y-5">
@@ -403,9 +403,9 @@ export default function SignupPage() {
           {/* ── Terms ───────────────────────────────────────────────── */}
           <p className="text-xs text-gray-400">
             By signing up, you agree to our{' '}
-            <Link href="#" className="text-brand-600 hover:underline">Terms of Service</Link>
+            <Link href="/terms" className="text-brand-600 hover:underline">Terms of Service</Link>
             {' '}and{' '}
-            <Link href="#" className="text-brand-600 hover:underline">Privacy Policy</Link>.
+            <Link href="/privacy" className="text-brand-600 hover:underline">Privacy Policy</Link>.
             All meetups must be in public places.
           </p>
 

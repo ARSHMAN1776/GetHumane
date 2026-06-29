@@ -33,31 +33,44 @@ interface CreatePaymentIntentParams {
 }
 
 /**
- * Creates a Stripe PaymentIntent for a booking.
- * Returns the clientSecret so the browser can confirm payment.
+ * Creates a Stripe PaymentIntent with manual capture (escrow model).
+ * The payment is authorized but NOT captured until the session completes.
  */
 export async function createPaymentIntent({
   amountUsd,
   bookingId,
   providerName,
-}: CreatePaymentIntentParams): Promise<{ clientSecret: string }> {
+}: CreatePaymentIntentParams): Promise<{ clientSecret: string; paymentIntentId: string }> {
   const paymentIntent = await stripe.paymentIntents.create({
-    amount: Math.round(amountUsd * 100), // Stripe uses cents
+    amount: Math.round(amountUsd * 100),
     currency: 'usd',
     description: `GetHumane booking with ${providerName}`,
-    metadata: {
-      booking_id: bookingId,
-    },
-    automatic_payment_methods: {
-      enabled: true,
-    },
+    capture_method: 'manual', // escrow: authorize now, capture on completion
+    metadata: { booking_id: bookingId },
+    automatic_payment_methods: { enabled: true },
   })
 
   if (!paymentIntent.client_secret) {
     throw new Error('Stripe did not return a client_secret')
   }
 
-  return { clientSecret: paymentIntent.client_secret }
+  return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id }
+}
+
+/**
+ * Captures an authorized PaymentIntent (releases escrow to provider).
+ * Call this when a booking session is marked completed.
+ */
+export async function capturePaymentIntent(paymentIntentId: string): Promise<void> {
+  await stripe.paymentIntents.capture(paymentIntentId)
+}
+
+/**
+ * Cancels an authorized PaymentIntent (releases escrow back to seeker).
+ * Call this when a booking is cancelled before completion.
+ */
+export async function cancelPaymentIntent(paymentIntentId: string): Promise<void> {
+  await stripe.paymentIntents.cancel(paymentIntentId)
 }
 
 // ─── Webhook signature verification ──────────────────────────────────────────

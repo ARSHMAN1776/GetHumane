@@ -1,28 +1,25 @@
-/**
- * app/api/waitlist/route.ts
- * POST /api/waitlist — validates email and inserts into the waitlist table.
- * Returns 409 Conflict when email already exists.
- */
-
 import { NextRequest } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { WaitlistSchema } from '@/lib/validations'
+import { rateLimit, getRateLimitKey, LIMITS } from '@/lib/ratelimit'
+import { sendWaitlistWelcomeEmail } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
-  try {
-    const body  = await request.json()
-    const email = (body.email as string)?.trim().toLowerCase()
+  const rl = rateLimit(getRateLimitKey(request, 'waitlist'), LIMITS.waitlist)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests. Please wait.' }, { status: 429 })
+  }
 
-    // ── Validate ────────────────────────────────────────────────────────────
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return Response.json(
-        { error: 'Please provide a valid email address.' },
-        { status: 400 }
-      )
+  try {
+    const body   = await request.json()
+    const parsed = WaitlistSchema.safeParse(body)
+    if (!parsed.success) {
+      return Response.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
+    const email = parsed.data.email.toLowerCase()
 
     const supabase = await createServerClient()
 
-    // ── Duplicate check ─────────────────────────────────────────────────────
     const { data: existing } = await supabase
       .from('waitlist')
       .select('id')
@@ -36,12 +33,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // ── Insert ──────────────────────────────────────────────────────────────
-    const { error } = await supabase
-      .from('waitlist')
-      .insert({ email })
-
+    const { error } = await supabase.from('waitlist').insert({ email })
     if (error) throw error
+
+    sendWaitlistWelcomeEmail({ email }).catch(console.warn)
 
     return Response.json(
       { data: { message: "You're on the list! We'll notify you at launch." } },
@@ -49,9 +44,6 @@ export async function POST(request: NextRequest) {
     )
   } catch (err) {
     console.error('[/api/waitlist POST]', err)
-    return Response.json(
-      { error: 'Something went wrong. Please try again.' },
-      { status: 500 }
-    )
+    return Response.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
 }

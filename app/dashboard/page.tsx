@@ -1,432 +1,432 @@
-/**
- * app/dashboard/page.tsx — Dashboard (Server Component, protected)
- *
- * Provider: booking requests with confirm/decline/details, stat cards, earnings graph label.
- * Seeker:   my bookings, nearby providers grid.
- */
-
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Calendar, DollarSign, Star, Users, Clock,
-  CheckCircle, XCircle, Loader, Search, ArrowRight,
-  BadgeCheck, MapPin, TrendingUp, Sparkles, Heart,
-  BookOpen, ChevronRight,
+  Calendar, DollarSign, Star, Clock, Search,
+  CheckCircle, Loader, XCircle, Bell,
+  TrendingUp, Users, Shield, Zap, ArrowRight, Sparkles,
 } from 'lucide-react'
 import { createServerClient, getCurrentUser } from '@/lib/supabase'
-import EmptyState from '@/components/EmptyState'
 import BookingActions from '@/components/BookingActions'
+import SeeMoreBookings from '@/components/SeeMoreBookings'
+import NotificationBell from '@/components/NotificationBell'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Dashboard — GetHumane' }
 export const dynamic = 'force-dynamic'
 
-const STATUS_STYLES: Record<string, string> = {
-  pending:   'badge-orange',
-  confirmed: 'badge-blue',
-  completed: 'badge-green',
-  cancelled: 'badge-gray',
+/* ── Shared stat card ───────────────────────────────────────────────────────── */
+function StatCard({
+  Icon, iconCls, value, label, sub, href,
+}: {
+  Icon: React.ElementType
+  iconCls: string
+  value: string | number
+  label: string
+  sub: string
+  href: string
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 flex items-start gap-5">
+      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${iconCls}`}>
+        <Icon size={24} strokeWidth={1.75} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-4xl font-bold text-gray-900 leading-none">{value}</p>
+        <p className="text-sm text-gray-500 mt-2 font-medium">{label}</p>
+        <Link href={href} className="flex items-center gap-1 text-xs text-gray-400 hover:text-emerald-600 mt-1.5 transition-colors">
+          {sub} <ArrowRight size={11} />
+        </Link>
+      </div>
+    </div>
+  )
 }
-const STATUS_ICONS: Record<string, React.ReactNode> = {
-  pending:   <Loader   size={12} />,
-  confirmed: <CheckCircle size={12} />,
-  completed: <CheckCircle size={12} />,
-  cancelled: <XCircle  size={12} />,
+
+/* ── Robot decoration ───────────────────────────────────────────────────────── */
+function RobotIllustration() {
+  return (
+    <div className="relative w-36 h-28 flex-shrink-0 flex items-center justify-center select-none overflow-hidden" aria-hidden>
+      {/* glow blob */}
+      <div className="absolute bottom-0 right-0 w-28 h-28 bg-emerald-100 rounded-full" />
+      {/* plus decorations */}
+      <span className="absolute top-1 right-2 text-emerald-400 font-black text-lg leading-none">+</span>
+      <span className="absolute bottom-2 left-1 text-emerald-400 font-black text-lg leading-none">+</span>
+      {/* robot */}
+      <div className="relative z-10 flex flex-col items-center">
+        <span className="text-base leading-none mb-1">❤️</span>
+        {/* head */}
+        <div className="w-14 h-14 bg-emerald-800 rounded-2xl border border-emerald-700/50 flex flex-col items-center justify-center gap-1.5">
+          <div className="flex gap-2">
+            <div className="w-2.5 h-2.5 bg-white rounded-full" />
+            <div className="w-2.5 h-2.5 bg-white rounded-full" />
+          </div>
+          <div className="w-6 h-0.5 bg-white/60 rounded-full" />
+        </div>
+        {/* body */}
+        <div className="w-10 h-5 bg-emerald-700/60 rounded-b-xl" />
+      </div>
+    </div>
+  )
+}
+
+/* ── Trust badges ───────────────────────────────────────────────────────────── */
+function TrustBadges() {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 px-8 py-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        {[
+          { Icon: Shield, label: 'Secure & Private', sub: 'Your data is protected', cls: 'bg-emerald-50 text-emerald-600' },
+          { Icon: Star, label: 'Top Rated Providers', sub: 'Verified and reviewed', cls: 'bg-amber-50 text-amber-500' },
+          { Icon: Zap, label: 'Quick & Easy', sub: 'Book in just a few taps', cls: 'bg-blue-50 text-blue-500' },
+        ].map(({ Icon, label, sub, cls }) => (
+          <div key={label} className="flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${cls}`}>
+              <Icon size={18} strokeWidth={1.75} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-800">{label}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default async function DashboardPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
-
   const supabase = await createServerClient()
+  const firstName = user.full_name?.split(' ')[0] ?? 'there'
 
-  // ── Provider Dashboard ──────────────────────────────────────────────────────
+  /* ═══ PROVIDER ═══════════════════════════════════════════════════════════════ */
   if (user.role === 'provider') {
-    const { data: bookings } = await supabase
-      .from('bookings')
-      .select('*, seeker:users!bookings_seeker_id_fkey(id,full_name,photo_url,city)')
-      .eq('provider_id', user.id)
-      .order('created_at', { ascending: false })
+    const [{ data: bookings }, { data: reviews }, { data: skills }, { data: groupSessions }] = await Promise.all([
+      supabase
+        .from('bookings')
+        .select('*, seeker:users!bookings_seeker_id_fkey(id,full_name,photo_url,city)')
+        .eq('provider_id', user.id)
+        .order('created_at', { ascending: false }),
+      supabase.from('reviews').select('rating').eq('reviewee_id', user.id),
+      supabase.from('skills').select('skill_name,hourly_rate').eq('user_id', user.id).limit(4),
+      supabase
+        .from('group_sessions')
+        .select('*, enrollments:group_enrollments(count)')
+        .eq('provider_id', user.id)
+        .order('date_time', { ascending: true })
+    ])
 
-    const { data: reviews } = await supabase
-      .from('reviews')
-      .select('rating')
-      .eq('reviewee_id', user.id)
-
-    const { data: skills } = await supabase
-      .from('skills')
-      .select('skill_name,hourly_rate')
-      .eq('user_id', user.id)
-      .limit(3)
-
-    const avgRating     = reviews?.length
-      ? +(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
-      : null
-    const totalEarnings = bookings
-      ?.filter((b) => b.status === 'completed')
-      .reduce((s, b) => s + (b.total_price ?? 0), 0) ?? 0
-    const pendingCount  = bookings?.filter((b) => b.status === 'pending').length ?? 0
-    const confirmedCount= bookings?.filter((b) => b.status === 'confirmed').length ?? 0
+    const avgRating = reviews?.length ? +(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1) : null
+    const totalEarned = bookings?.filter(b => b.status === 'completed').reduce((s, b) => s + (b.total_price ?? 0), 0) ?? 0
+    const pendingCount = bookings?.filter(b => b.status === 'pending').length ?? 0
+    const confirmed = bookings?.filter(b => b.status === 'confirmed').length ?? 0
 
     return (
-      <div className="min-h-screen bg-gray-50">
-        {/* ── Welcome banner ─────────────────────────────────────────────── */}
-        <div className="bg-gray-950 pt-24 pb-12 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-[0.04]"
-            style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px)', backgroundSize: '40px 40px' }}
-          />
-          <div className="absolute top-0 right-0 w-80 h-80 bg-brand-800 rounded-full blur-3xl opacity-20" />
-          <div className="container-app relative z-10">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  {user.photo_url ? (
-                    <img src={user.photo_url} alt={user.full_name} className="w-12 h-12 rounded-full object-cover border-2 border-white/20" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-brand-600 flex items-center justify-center text-white text-xl font-black border-2 border-brand-400">
-                      {user.full_name?.[0]?.toUpperCase()}
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-white/50 text-sm font-medium">Skill Provider</p>
-                    <div className="flex items-center gap-1.5">
-                      {user.is_verified && <BadgeCheck size={14} className="text-brand-400" />}
-                      <p className="text-white font-bold">{user.full_name}</p>
-                    </div>
-                  </div>
-                </div>
-                <h1 className="text-3xl md:text-4xl font-black text-white leading-tight">
-                  Good to see you back, {user.full_name?.split(' ')[0]} 👋
-                </h1>
-                <p className="text-white/50 mt-1">
-                  {pendingCount > 0
-                    ? `You have ${pendingCount} pending booking request${pendingCount > 1 ? 's' : ''} waiting for your response.`
-                    : 'Your provider dashboard — manage your bookings and skills.'}
-                </p>
-              </div>
-              {skills && skills.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {skills.map((s) => (
-                    <span key={s.skill_name} className="px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white/70 text-xs font-semibold">
-                      {s.skill_name} · ${s.hourly_rate}/hr
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+      <div className="min-h-screen bg-gray-50 text-gray-900">
+        {/* Header */}
+        <div className="px-8 py-7 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-brand-900 to-brand-700 border-b border-brand-950">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Welcome back, {firstName} 👋</h1>
+            <p className="text-emerald-300/70 text-sm mt-1">
+              {pendingCount > 0
+                ? `You have ${pendingCount} booking request${pendingCount > 1 ? 's' : ''} waiting.`
+                : "Here's what's happening with your bookings today."}
+            </p>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <NotificationBell userId={user.id} role="provider" />
+            <Link href="/dashboard/analytics" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/25 text-white text-sm font-semibold hover:bg-white/10 transition-all">
+              <TrendingUp size={15} /> Analytics
+            </Link>
+            <Link href="/browse" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-all">
+              <Search size={15} /> Browse Seekers
+            </Link>
           </div>
         </div>
 
-        <div className="container-app py-8 -mt-1">
-          {/* ── Stats row ─────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {[
-              {
-                label: 'Total Bookings',
-                value: bookings?.length ?? 0,
-                icon: <Calendar size={20} />,
-                bg: 'bg-brand-600',
-                sub: `${confirmedCount} confirmed`,
-              },
-              {
-                label: 'Pending Requests',
-                value: pendingCount,
-                icon: <Clock size={20} />,
-                bg: 'bg-amber-500',
-                sub: pendingCount ? 'Action needed' : 'All caught up ✓',
-              },
-              {
-                label: 'Total Earned',
-                value: `$${totalEarnings.toFixed(0)}`,
-                icon: <DollarSign size={20} />,
-                bg: 'bg-emerald-600',
-                sub: 'from completed sessions',
-              },
-              {
-                label: 'Your Rating',
-                value: avgRating ? `${avgRating} ★` : '—',
-                icon: <Star size={20} />,
-                bg: 'bg-yellow-500',
-                sub: reviews?.length ? `${reviews.length} reviews` : 'No reviews yet',
-              },
-            ].map((stat) => (
-              <div key={stat.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{stat.label}</p>
-                  <div className={`w-9 h-9 rounded-xl ${stat.bg} flex items-center justify-center text-white`}>
-                    {stat.icon}
-                  </div>
-                </div>
-                <p className="text-3xl font-black text-gray-900 mb-1">{stat.value}</p>
-                <p className="text-xs text-gray-400 font-medium">{stat.sub}</p>
-              </div>
-            ))}
+        <div className="px-8 py-6 space-y-5">
+          {/* Stats */}
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+            <StatCard Icon={Calendar} iconCls="bg-teal-100 text-teal-700" value={bookings?.length ?? 0} label="Total Bookings" sub={`${confirmed} upcoming`} href="#bookings" />
+            <StatCard Icon={Clock} iconCls={pendingCount > 0 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400'} value={pendingCount} label="Pending" sub={pendingCount > 0 ? 'Needs action' : 'All clear'} href="#bookings" />
+            <StatCard Icon={DollarSign} iconCls="bg-emerald-100 text-emerald-700" value={`$${totalEarned.toFixed(0)}`} label="Total Earned" sub={`${bookings?.filter(b => b.status === 'completed').length ?? 0} sessions done`} href="/dashboard/analytics" />
+            <StatCard Icon={Star} iconCls="bg-yellow-100 text-yellow-600" value={avgRating ?? '—'} label="Avg Rating" sub={reviews?.length ? `${reviews.length} reviews` : 'No reviews yet'} href="#" />
           </div>
 
-          {/* ── Pending alert banner ──────────────────────────────────────── */}
-          {pendingCount > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-                  <Clock size={18} className="text-amber-600" />
-                </div>
-                <div>
-                  <p className="font-semibold text-amber-900 text-sm">
-                    {pendingCount} booking request{pendingCount > 1 ? 's' : ''} waiting for your response
-                  </p>
-                  <p className="text-xs text-amber-700 mt-0.5">Respond within 24 hours to keep a high response rate.</p>
-                </div>
-              </div>
-              <ChevronRight size={18} className="text-amber-500 flex-shrink-0" />
+          {/* AI recs banner */}
+          <div className="bg-white rounded-2xl border border-gray-100 px-7 py-6 flex items-center gap-4 overflow-hidden">
+            <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <Sparkles size={22} className="text-emerald-600" strokeWidth={1.75} />
             </div>
-          )}
-
-          {/* ── Booking Requests ──────────────────────────────────────────── */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="font-bold text-gray-900 text-lg">Booking Requests</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Click ▼ on any row to see details and take action on pending bookings.</p>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-gray-900 text-base">AI-Powered Recommendations</p>
+              <p className="text-sm text-gray-400 mt-1">Tell us what you need in your profile to get personalized seeker matches.</p>
+              <div className="flex items-center gap-4 mt-4 flex-wrap">
+                <Link href="/dashboard/settings" className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold transition-all whitespace-nowrap">
+                  Update Profile
+                </Link>
+                <Link href="/how-it-works" className="flex items-center gap-1 text-sm font-semibold text-emerald-600 hover:text-emerald-700 transition-colors whitespace-nowrap">
+                  Learn more <ArrowRight size={14} />
+                </Link>
               </div>
-              <span className="badge-blue ml-4 flex-shrink-0">{bookings?.length ?? 0} total</span>
             </div>
+            <RobotIllustration />
+          </div>
 
+          {/* Bookings */}
+          <div id="bookings" className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">Booking Requests</h2>
+              <Link href="/dashboard/bookings" className="text-sm text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1">
+                View all bookings <ArrowRight size={13} />
+              </Link>
+            </div>
             {!bookings?.length ? (
-              <div className="py-16 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center mx-auto mb-4">
-                  <Calendar size={28} className="text-brand-300" />
+              <div className="py-16 text-center px-6">
+                <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Calendar size={24} className="text-emerald-300" />
                 </div>
-                <h3 className="font-semibold text-gray-700 mb-2">No booking requests yet</h3>
-                <p className="text-sm text-gray-400 mb-6 max-w-xs mx-auto">
-                  Complete your profile and add your skills to start getting booked by seekers in your city.
+                <p className="font-semibold text-gray-500">No booking requests yet</p>
+                <p className="text-sm text-gray-400 mt-1 mb-5 max-w-xs mx-auto">
+                  Complete your profile and list your skills to start attracting clients.
                 </p>
-                <Link href="/dashboard/settings" className="btn-secondary text-sm py-2">
-                  <Sparkles size={15} />
-                  Complete Your Profile
+                {!skills?.length && (
+                  <Link href="/dashboard/settings" className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all">
+                    <Sparkles size={15} /> Add your skills
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="divide-y divide-gray-50">
+                  {bookings.slice(0, 5).map(booking => (
+                    <BookingActions key={booking.id} booking={booking} />
+                  ))}
+                </div>
+                {bookings.length > 5 && (
+                  <div className="border-t border-gray-100 py-3 text-center">
+                    <Link href="/dashboard/bookings" className="text-sm text-emerald-600 hover:text-emerald-700 font-semibold">
+                      View all {bookings.length} bookings →
+                    </Link>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Group Sessions section */}
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-gray-900">My Group Sessions</h2>
+              <Link href="/groups" className="text-sm text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1">
+                Browse group sessions <ArrowRight size={13} />
+              </Link>
+            </div>
+            {!groupSessions?.length ? (
+              <div className="py-12 text-center px-6">
+                <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <Users size={20} className="text-emerald-400" />
+                </div>
+                <p className="font-semibold text-gray-500 text-sm">No group sessions scheduled</p>
+                <p className="text-xs text-gray-400 mt-1 mb-4">
+                  Host group classes to teach multiple students simultaneously and increase your earnings.
+                </p>
+                <Link href="/groups/create" className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all">
+                  Create Group Session
                 </Link>
               </div>
             ) : (
-              <div>
-                {bookings.map((booking) => (
-                  <BookingActions key={booking.id} booking={booking} />
-                ))}
+              <div className="divide-y divide-gray-50">
+                {groupSessions.map((session: any) => {
+                  const enrolled = session.enrollments?.[0]?.count ?? 0
+                  return (
+                    <div key={session.id} className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <h4 className="font-bold text-gray-900 text-sm">{session.title}</h4>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {session.skill_name} · {new Date(session.date_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1 truncate max-w-md">{session.location}</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-gray-800">{enrolled} / {session.max_capacity} Enrolled</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">${session.price_per_seat} per seat</p>
+                        </div>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-brand-50 border border-brand-100 text-brand-700 rounded-full capitalize">
+                          {session.status}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
+
+          <TrustBadges />
         </div>
       </div>
     )
   }
 
-  // ── Seeker Dashboard ────────────────────────────────────────────────────────
-  const { data: bookings } = await supabase
-    .from('bookings')
-    .select('*, provider:users!bookings_provider_id_fkey(id,full_name,photo_url,city)')
-    .eq('seeker_id', user.id)
-    .order('created_at', { ascending: false })
+  /* ═══ SEEKER ════════════════════════════════════════════════════════════════ */
+  const [{ data: bookings }, { data: myReviews }, { data: nearby }, { data: groupEnrollments }] = await Promise.all([
+    supabase
+      .from('bookings')
+      .select('*, provider:users!bookings_provider_id_fkey(id,full_name,photo_url)')
+      .eq('seeker_id', user.id)
+      .order('created_at', { ascending: false }),
+    supabase.from('reviews').select('booking_id').eq('reviewer_id', user.id),
+    supabase.from('users').select('id').eq('role', 'provider').eq('city', user.city ?? '').neq('id', user.id),
+    supabase
+      .from('group_enrollments')
+      .select('*, session:group_sessions(*, provider:users(id, full_name, photo_url))')
+      .eq('seeker_id', user.id)
+      .order('created_at', { ascending: false })
+  ])
 
-  const { data: nearbyProviders } = await supabase
-    .from('users')
-    .select('*, skills(*)')
-    .eq('role', 'provider')
-    .eq('city', user.city)
-    .neq('id', user.id)
-    .limit(6)
-
-  const activeCount = bookings?.filter((b) => ['pending','confirmed'].includes(b.status)).length ?? 0
+  const reviewedIds = (myReviews ?? []).map(r => r.booking_id)
+  const activeCount = bookings?.filter(b => ['pending', 'confirmed'].includes(b.status)).length ?? 0
+  const nearbyCount = nearby?.length ?? 0
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* ── Welcome banner ──────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-brand-600 to-brand-800 pt-24 pb-12 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10"
-          style={{ backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.2) 50%, rgba(255,255,255,.2) 75%, transparent 75%)', backgroundSize: '40px 40px' }}
-        />
-        <div className="container-app relative z-10">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                {user.photo_url ? (
-                  <img src={user.photo_url} alt={user.full_name} className="w-12 h-12 rounded-full object-cover border-2 border-white/30" />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-white text-xl font-black">
-                    {user.full_name?.[0]?.toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <p className="text-brand-200 text-sm font-medium">Skill Seeker</p>
-                  <p className="text-white font-bold">{user.full_name}</p>
-                </div>
-              </div>
-              <h1 className="text-3xl md:text-4xl font-black text-white leading-tight">
-                Hey {user.full_name?.split(' ')[0]}, find your next human connection 👋
-              </h1>
-              <p className="text-brand-200 mt-1">
-                {user.city ? `Showing providers in ${user.city} and nearby.` : 'Browse real people offering real skills near you.'}
-              </p>
-            </div>
-            <Link href="/browse" className="btn-white flex-shrink-0">
-              <Search size={18} className="text-brand-600" />
-              <span className="text-brand-700 font-bold">Browse Skills</span>
-            </Link>
-          </div>
-
-          {/* Quick stats */}
-          <div className="grid grid-cols-3 gap-4 mt-8 max-w-lg">
-            {[
-              { label: 'My Bookings',     value: bookings?.length ?? 0 },
-              { label: 'Active Sessions', value: activeCount },
-              { label: 'Nearby Providers',value: nearbyProviders?.length ?? 0 },
-            ].map((s) => (
-              <div key={s.label} className="bg-white/10 rounded-xl p-3 border border-white/20 text-center">
-                <p className="text-2xl font-black text-white">{s.value}</p>
-                <p className="text-brand-200 text-xs font-medium mt-0.5">{s.label}</p>
-              </div>
-            ))}
-          </div>
+    <div className="min-h-screen bg-gray-50 text-gray-900">
+      {/* Header */}
+      <div className="px-8 py-7 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-brand-900 to-brand-700 border-b border-brand-950">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Welcome back, {firstName} 👋</h1>
+          <p className="text-emerald-300/70 text-sm mt-1">Here's what's happening with your bookings today.</p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <NotificationBell userId={user.id} role="seeker" />
+          <Link href="/onboarding/quiz" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/25 text-white text-sm font-semibold hover:bg-white/10 transition-all">
+            <Sparkles size={15} /> AI Match
+          </Link>
+          <Link href="/browse" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold transition-all">
+            <Search size={15} /> Browse Providers
+          </Link>
         </div>
       </div>
 
-      <div className="container-app py-8">
-        {/* ── Active Bookings ────────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-8">
-          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-            <div>
-              <h2 className="font-bold text-gray-900 text-lg">My Bookings</h2>
-              <p className="text-xs text-gray-400 mt-0.5">All your booking history with providers.</p>
+      <div className="px-8 py-6 space-y-5">
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <StatCard Icon={Calendar} iconCls="bg-teal-100 text-teal-700" value={bookings?.length ?? 0} label="My Bookings" sub="View all upcoming bookings" href="#bookings" />
+          <StatCard Icon={Clock} iconCls="bg-amber-100 text-amber-600" value={activeCount} label="Active Sessions" sub="In progress right now" href="#bookings" />
+          <StatCard Icon={Users} iconCls="bg-blue-100 text-blue-600" value={nearbyCount} label="Nearby Providers" sub="Available in your area" href="/browse" />
+        </div>
+
+        {/* AI recs */}
+        <div className="bg-white rounded-2xl border border-gray-100 px-7 py-6 flex items-center gap-6">
+          <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+            <Sparkles size={22} className="text-emerald-600" strokeWidth={1.75} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-gray-900 text-base">AI-Powered Recommendations</p>
+            <p className="text-sm text-gray-400 mt-1">Tell us what you need in your profile to get personalized provider matches.</p>
+            <div className="flex items-center gap-4 mt-4">
+              <Link href="/dashboard/settings" className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold transition-all">
+                Update Profile
+              </Link>
+              <Link href="/how-it-works" className="flex items-center gap-1 text-sm font-semibold text-emerald-600 hover:text-emerald-700 transition-colors">
+                Learn more <ArrowRight size={14} />
+              </Link>
             </div>
-            <span className="badge-blue ml-4 flex-shrink-0">{bookings?.length ?? 0} total</span>
+          </div>
+          <RobotIllustration />
+        </div>
+
+        {/* My Bookings */}
+        <div id="bookings" className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="font-bold text-gray-900">My Bookings</h2>
+            <Link href="/dashboard/bookings" className="text-sm text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1">
+              View all bookings <ArrowRight size={13} />
+            </Link>
           </div>
 
           {!bookings?.length ? (
-            <div className="py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center mx-auto mb-4">
-                <Heart size={28} className="text-brand-300" />
+            <div className="py-16 text-center px-6">
+              <div className="w-14 h-14 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Search size={24} className="text-teal-300" />
               </div>
-              <h3 className="font-semibold text-gray-700 mb-2">No bookings yet</h3>
-              <p className="text-sm text-gray-400 mb-6 max-w-xs mx-auto">
-                Browse real people near you and make your first booking — it only takes 2 minutes.
-              </p>
-              <Link href="/browse" className="btn-primary text-sm py-2.5">
-                <Search size={15} />
-                Find a Skill Provider
+              <p className="font-semibold text-gray-500">No bookings yet</p>
+              <p className="text-sm text-gray-400 mt-1 mb-5">Browse local skill providers and make your first booking.</p>
+              <Link href="/browse" className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all">
+                <Search size={15} /> Find a Provider
+              </Link>
+            </div>
+          ) : (
+            <SeeMoreBookings
+              bookings={bookings as any}
+              reviewedIds={reviewedIds}
+              initialShow={2}
+            />
+          )}
+        </div>
+
+        {/* Enrolled Group Sessions */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="font-bold text-gray-900">My Enrolled Groups</h2>
+            <Link href="/groups" className="text-sm text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-1">
+              Find group sessions <ArrowRight size={13} />
+            </Link>
+          </div>
+          {!groupEnrollments?.length ? (
+            <div className="py-12 text-center px-6">
+              <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Users size={20} className="text-emerald-400" />
+              </div>
+              <p className="font-semibold text-gray-500 text-sm">No group sessions joined yet</p>
+              <p className="text-xs text-gray-400 mt-1 mb-4">Join group learning circles with friends and neighbors.</p>
+              <Link href="/groups" className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all">
+                Browse Group Sessions
               </Link>
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
-              {bookings.map((booking) => (
-                <div key={booking.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-                  <div className="w-11 h-11 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0 text-sm font-bold text-brand-700 overflow-hidden">
-                    {booking.provider?.photo_url ? (
-                      <img src={booking.provider.photo_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      booking.provider?.full_name?.[0]?.toUpperCase()
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 text-sm truncate">
-                      {booking.provider?.full_name ?? 'Unknown provider'}
-                    </p>
-                    <p className="text-xs text-gray-400 flex items-center gap-2 mt-0.5">
-                      <Clock size={11} />
-                      {new Date(booking.date_time).toLocaleString('en-US', {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                      <MapPin size={11} />
-                      <span className="truncate max-w-[100px]">{booking.location}</span>
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-sm text-gray-800">
-                      ${booking.total_price?.toFixed(2)}
-                    </span>
-                    <span className={`${STATUS_STYLES[booking.status] ?? 'badge-gray'} capitalize`}>
-                      {STATUS_ICONS[booking.status]}
-                      {booking.status}
-                    </span>
-                    <Link
-                      href={`/provider/${booking.provider_id}`}
-                      className="text-xs font-semibold text-brand-600 hover:text-brand-800 hover:underline flex-shrink-0 flex items-center gap-0.5"
-                    >
-                      View <ChevronRight size={12} />
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ── Nearby Providers ──────────────────────────────────────────── */}
-        <div>
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="font-bold text-gray-900 text-xl">
-                {user.city ? `Providers near ${user.city}` : 'Providers Near You'}
-              </h2>
-              <p className="text-sm text-gray-400 mt-0.5">Real people, real skills, ready to meet.</p>
-            </div>
-            <Link
-              href="/browse"
-              className="text-sm text-brand-600 font-semibold hover:underline flex items-center gap-1"
-            >
-              See all <ArrowRight size={14} />
-            </Link>
-          </div>
-
-          {!nearbyProviders?.length ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center mx-auto mb-4">
-                <Users size={28} className="text-brand-300" />
-              </div>
-              <h3 className="font-semibold text-gray-700 mb-2">No providers in your city yet</h3>
-              <p className="text-sm text-gray-400 mb-6">Try browsing all providers to find someone who can help.</p>
-              <Link href="/browse" className="btn-secondary text-sm py-2.5">
-                <Search size={15} />
-                Browse All Providers
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {nearbyProviders.map((p) => (
-                <Link
-                  key={p.id}
-                  href={`/provider/${p.id}`}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-brand-200 transition-all p-5 flex items-center gap-4 group"
-                >
-                  <div className="w-14 h-14 rounded-2xl bg-brand-100 flex items-center justify-center text-lg font-black text-brand-700 flex-shrink-0 overflow-hidden">
-                    {p.photo_url ? (
-                      <img src={p.photo_url} alt={p.full_name} className="w-full h-full object-cover" />
-                    ) : (
-                      p.full_name?.[0]?.toUpperCase()
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <p className="font-bold text-gray-900 text-sm truncate group-hover:text-brand-700 transition-colors">{p.full_name}</p>
-                      {p.is_verified && <BadgeCheck size={14} className="text-brand-500 flex-shrink-0" />}
+              {groupEnrollments.map((enrollment: any) => {
+                const s = enrollment.session
+                if (!s) return null
+                return (
+                  <div key={enrollment.id} className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex gap-3 items-center">
+                      <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold overflow-hidden flex-shrink-0">
+                        {s.provider?.photo_url ? (
+                          <img src={s.provider.photo_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          s.provider?.full_name?.[0]?.toUpperCase()
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-gray-900 text-sm">{s.title}</h4>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Led by {s.provider?.full_name || 'Verified Provider'} · {s.skill_name}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {new Date(s.date_time).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-500 truncate">
-                      {p.skills?.map((s: { skill_name: string }) => s.skill_name).join(', ') || 'No skills listed'}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-xs text-gray-400 flex items-center gap-0.5">
-                        <MapPin size={10} /> {p.city}
+                    <div className="flex items-center gap-4 sm:text-right">
+                      <div>
+                        <p className="text-xs font-bold text-gray-800">{enrollment.seats} Seat{enrollment.seats > 1 ? 's' : ''}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Total Paid: ${enrollment.total_paid}</p>
+                      </div>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-full capitalize">
+                        {enrollment.status}
                       </span>
-                      {p.skills?.[0]?.hourly_rate && (
-                        <span className="text-xs font-bold text-brand-600">
-                          ${p.skills[0].hourly_rate}/hr
-                        </span>
-                      )}
                     </div>
                   </div>
-                  <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-500 transition-colors flex-shrink-0" />
-                </Link>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
+
+        <TrustBadges />
       </div>
     </div>
   )

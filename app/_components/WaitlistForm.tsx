@@ -75,8 +75,8 @@ export default function WaitlistForm() {
         id="waitlist-submit"
         className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold text-base text-white transition-all disabled:opacity-60 whitespace-nowrap hover:scale-[1.02] active:scale-95"
         style={{
-          background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 40%, #f97316 100%)',
-          boxShadow: '0 0 20px rgba(14,165,233,0.3), 0 4px 14px rgba(0,0,0,0.3)',
+          background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 40%, #0f766e 100%)',
+          boxShadow: '0 0 20px rgba(15,118,110,0.3), 0 4px 14px rgba(0,0,0,0.3)',
         }}
       >
         {loading ? (

@@ -1,37 +1,33 @@
-/**
- * app/api/report/route.ts
- * POST /api/report — logs a user report to the reports table.
- */
-
 import { NextRequest } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { ReportSchema } from '@/lib/validations'
+import { rateLimit, getRateLimitKey, LIMITS } from '@/lib/ratelimit'
 
 export async function POST(request: NextRequest) {
-  try {
-    const body               = await request.json()
-    const { reported_user_id, reason } = body
+  const rl = rateLimit(getRateLimitKey(request, 'report'), LIMITS.general)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests. Please wait.' }, { status: 429 })
+  }
 
-    if (!reported_user_id || !reason) {
-      return Response.json(
-        { error: 'Missing required fields: reported_user_id, reason.' },
-        { status: 400 }
-      )
+  try {
+    const body   = await request.json()
+    const parsed = ReportSchema.safeParse(body)
+    if (!parsed.success) {
+      return Response.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
+    const { reported_user_id, reason } = parsed.data
 
     const supabase = await createServerClient()
 
-    // Must be authenticated to file a report
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return Response.json({ error: 'You must be logged in to report a user.' }, { status: 401 })
     }
 
-    // Can't report yourself
     if (user.id === reported_user_id) {
       return Response.json({ error: 'You cannot report yourself.' }, { status: 400 })
     }
 
-    // Check reported user exists
     const { data: reportedUser } = await supabase
       .from('users')
       .select('id')
@@ -42,7 +38,21 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'User not found.' }, { status: 404 })
     }
 
-    // Insert the report
+    // Prevent duplicate reports from same user
+    const { data: existing } = await supabase
+      .from('reports')
+      .select('id')
+      .eq('reporter_id', user.id)
+      .eq('reported_user_id', reported_user_id)
+      .maybeSingle()
+
+    if (existing) {
+      return Response.json(
+        { error: 'You have already reported this user. Our team is reviewing it.' },
+        { status: 409 }
+      )
+    }
+
     const { error } = await supabase.from('reports').insert({
       reporter_id:      user.id,
       reported_user_id,
@@ -51,12 +61,9 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
-    return Response.json({ data: { message: 'Report submitted. Our safety team will review it.' } })
+    return Response.json({ data: { message: 'Report submitted. Our safety team will review it within 24 hours.' } })
   } catch (err) {
     console.error('[/api/report POST]', err)
-    return Response.json(
-      { error: 'Failed to submit report. Please try again.' },
-      { status: 500 }
-    )
+    return Response.json({ error: 'Failed to submit report. Please try again.' }, { status: 500 })
   }
 }

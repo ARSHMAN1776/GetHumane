@@ -16,10 +16,12 @@ import StarRating from '@/components/StarRating'
 import ReviewCard from '@/components/ReviewCard'
 import EmptyState from '@/components/EmptyState'
 import ReportButton from '@/components/ReportButton'
+import TrustScore from '@/components/TrustScore'
+import PortfolioGrid from '@/components/PortfolioGrid'
 import type { Metadata } from 'next'
 
-// Force dynamic — uses Supabase server auth
-export const dynamic = 'force-dynamic'
+// Revalidate every 60 seconds — profile data doesn't change per-second
+export const revalidate = 60
 
 // Next.js 16: params is a Promise
 interface Props { params: Promise<{ id: string }> }
@@ -63,6 +65,21 @@ export default async function ProviderProfilePage({ params }: Props) {
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
     : 0
 
+  // Fetch portfolio items
+  const { data: portfolioItems } = await supabase
+    .from('portfolio_items')
+    .select('id, image_url, caption')
+    .eq('user_id', id)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+
+  // Fetch completed session count for Trust Score
+  const { count: sessionCount } = await supabase
+    .from('bookings')
+    .select('*', { count: 'exact', head: true })
+    .eq('provider_id', id)
+    .eq('status', 'completed')
+
   const primarySkill = skills?.[0]
 
   return (
@@ -84,7 +101,7 @@ export default async function ProviderProfilePage({ params }: Props) {
                     className="w-28 h-28 rounded-full object-cover border-4 border-white shadow-lg"
                   />
                 ) : (
-                  <div className="w-28 h-28 rounded-full bg-gradient-to-br from-brand-100 to-accent-100 flex items-center justify-center text-4xl font-black text-brand-600 border-4 border-white shadow-lg">
+                  <div className="w-28 h-28 rounded-full bg-gradient-to-br from-brand-100 to-accent-100 flex items-center justify-center text-4xl font-bold text-brand-600 border-4 border-white shadow-lg">
                     {provider.full_name?.[0]?.toUpperCase()}
                   </div>
                 )}
@@ -152,6 +169,20 @@ export default async function ProviderProfilePage({ params }: Props) {
               )}
             </div>
 
+            {/* Trust Score */}
+            <div className="card p-5 flex flex-col items-center gap-1">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 self-start">Trust Score</p>
+              <TrustScore
+                is_verified={!!provider.is_verified}
+                bg_check_clear={(provider as any).background_check_status === 'clear'}
+                avg_rating={reviews?.length ? avgRating : null}
+                session_count={sessionCount ?? 0}
+                response_rate={null}
+                size="md"
+                showBreakdown
+              />
+            </div>
+
             {/* Skills list */}
             <div className="card p-5">
               <h2 className="font-semibold text-gray-900 mb-3">Skills Offered</h2>
@@ -189,6 +220,11 @@ export default async function ProviderProfilePage({ params }: Props) {
                 </h2>
                 <p className="text-gray-600 leading-relaxed">{provider.bio}</p>
               </div>
+            )}
+
+            {/* Portfolio */}
+            {portfolioItems && portfolioItems.length > 0 && (
+              <PortfolioGrid items={portfolioItems} />
             )}
 
             {/* Availability note */}

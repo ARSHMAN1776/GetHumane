@@ -114,7 +114,7 @@ export default function WaitlistPopup() {
           <button
             onClick={(e) => { e.stopPropagation(); openModal() }}
             className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all"
-            style={{ background: 'linear-gradient(135deg, #0ea5e9, #f97316)' }}
+            style={{ background: 'linear-gradient(135deg, #14b8a6, #0f766e)' }}
           >
             Join Waitlist
           </button>
@@ -155,7 +155,7 @@ export default function WaitlistPopup() {
                     <CheckCircle size={36} className="text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-2xl font-black text-white mb-1">You're on the list! 🎉</p>
+                    <p className="text-2xl font-bold text-white mb-1">You're on the list! 🎉</p>
                     <p className="text-white/50 text-sm">We'll notify you when we launch in your city.</p>
                   </div>
                 </div>
@@ -165,11 +165,11 @@ export default function WaitlistPopup() {
                   {/* Header */}
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'linear-gradient(135deg, #0ea5e9, #f97316)' }}>
+                      style={{ background: 'linear-gradient(135deg, #14b8a6, #0f766e)' }}>
                       <Bell size={20} className="text-white" />
                     </div>
                     <div>
-                      <p className="text-white font-black text-lg leading-tight">Get Early Access</p>
+                      <p className="text-white font-bold text-lg leading-tight">Get Early Access</p>
                       <p className="text-white/40 text-sm">Be first in your city at launch</p>
                     </div>
                   </div>
@@ -206,8 +206,8 @@ export default function WaitlistPopup() {
                       disabled={loading}
                       className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-white text-sm transition-all disabled:opacity-60 hover:opacity-90 active:scale-95"
                       style={{
-                        background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #f97316 100%)',
-                        boxShadow: '0 0 24px rgba(14,165,233,0.3)',
+                        background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%)',
+                        boxShadow: '0 0 24px rgba(15,118,110,0.3)',
                       }}
                     >
                       {loading

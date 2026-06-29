@@ -73,7 +73,7 @@ export default function SafetyPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-100 mb-5">
             <Shield size={32} className="text-emerald-600" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">Safety Center</h1>
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Safety Center</h1>
           <p className="text-lg text-gray-500 max-w-xl mx-auto leading-relaxed">
             Your safety is our absolute priority. We've built multiple layers of protection
             into every part of the GetHumane experience.

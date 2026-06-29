@@ -1,31 +1,29 @@
-/**
- * components/Footer.tsx
- * Site-wide footer — links, tagline, copyright.
- */
+'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Heart, MessageCircle, Code2, Briefcase } from 'lucide-react'
 
 const footerLinks = {
   Platform: [
     { label: 'Browse Skills',   href: '/browse' },
     { label: 'Offer a Skill',   href: '/signup' },
-    { label: 'How It Works',    href: '/#how-it-works' },
+    { label: 'How It Works',    href: '/how-it-works' },
   ],
   Support: [
     { label: 'Safety Center',   href: '/safety' },
-    { label: 'Help Center',     href: '#' },
-    { label: 'Contact Us',      href: '#' },
+    { label: 'Help Center',     href: '/help' },
+    { label: 'Contact Us',      href: '/contact' },
   ],
   Company: [
-    { label: 'About',           href: '#' },
-    { label: 'Blog',            href: '#' },
-    { label: 'Careers',         href: '#' },
+    { label: 'About',           href: '/about' },
+    { label: 'Blog',            href: '/blog' },
+    { label: 'Careers',         href: '/careers' },
   ],
   Legal: [
-    { label: 'Privacy Policy',  href: '#' },
-    { label: 'Terms of Service',href: '#' },
-    { label: 'Cookie Policy',   href: '#' },
+    { label: 'Privacy Policy',  href: '/privacy' },
+    { label: 'Terms of Service',href: '/terms' },
+    { label: 'Cookie Policy',   href: '/privacy#cookies' },
   ],
 }
 
@@ -36,6 +34,8 @@ const socials = [
 ]
 
 export default function Footer() {
+  const pathname = usePathname()
+  if (['/dashboard', '/login', '/signup'].some((p) => pathname?.startsWith(p))) return null
   return (
     <footer className="bg-gray-950 text-gray-400">
       <div className="container-app py-16">

@@ -1,0 +1,38 @@
+{
+  "name": "GetHumane",
+  "short_name": "GetHumane",
+  "description": "Connect with real people offering real skills near you.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#0f766e",
+  "orientation": "portrait-primary",
+  "categories": ["lifestyle", "social", "education"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Browse Skills",
+      "url": "/browse",
+      "description": "Find providers near you"
+    },
+    {
+      "name": "My Dashboard",
+      "url": "/dashboard",
+      "description": "Manage your bookings"
+    }
+  ]
+}

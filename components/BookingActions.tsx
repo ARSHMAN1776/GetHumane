@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react'
+import Link from 'next/link'
 import {
   CheckCircle, XCircle, ChevronDown, ChevronUp,
   Clock, MapPin, MessageSquare, DollarSign, Loader2, User
@@ -151,6 +152,18 @@ export default function BookingActions({ booking: initialBooking }: Props) {
                 Decline
               </button>
             </>
+          )}
+
+          {/* Message link (any non-cancelled booking) */}
+          {booking.status !== 'cancelled' && (
+            <Link
+              href={`/dashboard/messages/${booking.id}`}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 border border-brand-200 transition-all"
+              title="Open message thread"
+            >
+              <MessageSquare size={13} />
+              Message
+            </Link>
           )}
 
           {/* Toggle details */}
